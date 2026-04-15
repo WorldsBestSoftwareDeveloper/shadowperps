@@ -64,8 +64,8 @@ export default function HomePage() {
         </h1>
 
         <p className="max-w-2xl mx-auto text-lg text-arcium-300 mb-10 leading-relaxed animate-fade-up" style={{ animationDelay: "0.2s" }}>
-          The first encrypted perpetual futures protocol on Solana. Positions, orders, and liquidation
-          checks compute privately via MPC — only final PnL is revealed.
+          Your positions and liquidation logic are computed privately using Arcium.
+          Only final PnL is revealed — preventing copy trading exploitation and MEV attacks.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up" style={{ animationDelay: "0.3s" }}>
