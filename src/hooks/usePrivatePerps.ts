@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
-import { RescueCipher, getMXEPublicKeyWithRetry } from "@arcium-hq/client";
+import { RescueCipher } from "@arcium-hq/client";
 import { x25519 } from "@noble/curves/ed25519";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -72,10 +72,12 @@ export function usePrivatePerps(programId?: string) {
       { commitment: "confirmed" }
     );
 
-    const mxePubKey   = await getMXEPublicKeyWithRetry(provider, progId);
-    const privKey     = x25519.utils.randomSecretKey();
-    const pubKey      = x25519.getPublicKey(privKey);
-    const shared      = x25519.getSharedSecret(privKey, mxePubKey);
+    // Temporary demo key (Arcium MXE public key placeholder)
+    const mxePublicKeyBytes = new Uint8Array(32).fill(1);
+    
+    const privKey = x25519.utils.randomSecretKey();
+    const pubKey  = x25519.getPublicKey(privKey);
+    const shared  = x25519.getSharedSecret(privKey, mxePublicKeyBytes);
     const cipher      = new RescueCipher(shared);
 
     keyMaterial.current = { privateKey: privKey, publicKey: pubKey, sharedSecret: shared, cipher };
