@@ -1,1 +1,3 @@
 node_modules .next .env dist .cache
+node_modules/
+.next/
