@@ -4,7 +4,9 @@
 
 ShadowPerps is a privacy-preserving perpetual trading application built on Solana using Arcium’s confidential compute network. It enables traders to open and manage leveraged positions without revealing sensitive data like position size, leverage, or liquidation thresholds.
 
-🌐 Live App: https://shadowperps-vert.vercel.app/  
+🌐 Live App: https://shadowperps-vert.vercel.app/ 
+or
+https://privateperps.vercel.app/
 💻 GitHub: https://github.com/WorldsBestSoftwareDeveloper/shadowperps  
 
 ---
