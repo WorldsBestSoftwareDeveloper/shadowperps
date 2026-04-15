@@ -73,8 +73,8 @@ Without Arcium, all of this data would be publicly visible and exploitable.
 ## 🖼 Screenshots
 
 
-![App Screenshot](./public/screenshot1.png)
-![Trading Interface](./public/screenshot2.png)
+![App Screenshot](./images/screenshot_1.png)
+![Trading Interface](./images/screenshot_2.png)
 
 ---
 
