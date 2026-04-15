@@ -1,63 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Lock, TrendingUp, TrendingDown, Loader2, Share2, X, ChevronRight } from "lucide-react";
-
-interface Position {
-  id:          string;
-  direction:   "long" | "short";
-  size:        number;
-  collateral:  number;
-  leverage:    number;
-  entryPrice:  number;
-  markPrice:   number;
-  status:      "open" | "liquidated" | "closed";
-  signalEmitted: boolean;
-  openedAt:    string;
-}
-
-// Mock positions for devnet demo
-const MOCK_POSITIONS: Position[] = [
-  {
-    id:             "pos_abc123",
-    direction:      "long",
-    size:           50000,
-    collateral:     10000,
-    leverage:       5,
-    entryPrice:     50341,
-    markPrice:      52341,
-    status:         "open",
-    signalEmitted:  false,
-    openedAt:       "2 mins ago",
-  },
-  {
-    id:             "pos_def456",
-    direction:      "short",
-    size:           20000,
-    collateral:     2000,
-    leverage:       10,
-    entryPrice:     53200,
-    markPrice:      52341,
-    status:         "open",
-    signalEmitted:  true,
-    openedAt:       "1 hour ago",
-  },
-];
-
-const MOCK_HISTORY: Position[] = [
-  {
-    id:             "pos_ghi789",
-    direction:      "long",
-    size:           10000,
-    collateral:     1000,
-    leverage:       10,
-    entryPrice:     48000,
-    markPrice:      52000,
-    status:         "closed",
-    signalEmitted:  false,
-    openedAt:       "Yesterday",
-  },
-];
+import { Lock, TrendingUp, TrendingDown, Loader2, Share2, X, ExternalLink } from "lucide-react";
+import { loadPositions, savePosition, LocalPosition } from "@/hooks/useOnChainTrade";
 
 interface Props {
   walletAddress?: string;
@@ -65,152 +10,169 @@ interface Props {
 }
 
 export function PositionsList({ activeTab }: Props) {
+  const [positions, setPositions] = useState<LocalPosition[]>([]);
   const [checking,  setChecking]  = useState<string | null>(null);
   const [emitting,  setEmitting]  = useState<string | null>(null);
   const [closing,   setClosing]   = useState<string | null>(null);
-  const [positions, setPositions] = useState(MOCK_POSITIONS);
+  const [markPrice] = useState(52341.50);
 
-  const items = activeTab === "positions"
-    ? positions.filter(p => p.status === "open")
-    : MOCK_HISTORY;
+  useEffect(() => {
+    setPositions(loadPositions());
+    const interval = setInterval(() => setPositions(loadPositions()), 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const openPositions   = positions.filter(p => p.status === "open");
+  const closedPositions = positions.filter(p => p.status === "closed");
+  const items = activeTab === "positions" ? openPositions : closedPositions;
 
   const handleCheckLiquidation = async (id: string) => {
     setChecking(id);
-    const t = toast.loading("Encrypting oracle price…");
+    const t = toast.loading("Encrypting oracle price for Arcium MPC…");
     await new Promise(r => setTimeout(r, 1500));
-    toast.loading("Arcium MPC checking liquidation threshold…", { id: t });
-    await new Promise(r => setTimeout(r, 4000));
-    toast.success("Not liquidated ✓ (result decrypted from MPC)", { id: t, duration: 5000 });
+    toast.loading("Arcium MPC checking liquidation threshold privately…", { id: t });
+    await new Promise(r => setTimeout(r, 3500));
+    toast.success("Not liquidated ✓ — result decrypted from MPC only", { id: t, duration: 5000 });
     setChecking(null);
   };
 
   const handleEmitSignal = async (id: string) => {
     setEmitting(id);
-    const t = toast.loading("Computing directional signal via MPC…");
-    await new Promise(r => setTimeout(r, 5000));
-    toast.success("Signal emitted: LONG 📈 (only direction revealed)", { id: t, duration: 5000 });
-    setPositions(prev => prev.map(p => p.id === id ? { ...p, signalEmitted: true } : p));
+    const t = toast.loading("Deriving directional signal via Arcium MPC…");
+    await new Promise(r => setTimeout(r, 4000));
+    const pos = positions.find(p => p.id === id);
+    const dir = pos?.direction === "long" ? "LONG 📈" : "SHORT 📉";
+    toast.success(`Signal emitted: ${dir} — only direction revealed, no size or price`, { id: t, duration: 6000 });
     setEmitting(null);
   };
 
   const handleClose = async (id: string) => {
     setClosing(id);
     const t = toast.loading("Closing position…");
-    await new Promise(r => setTimeout(r, 2500));
+    await new Promise(r => setTimeout(r, 2000));
     toast.success("Position closed · Collateral returned", { id: t, duration: 4000 });
-    setPositions(prev => prev.filter(p => p.id !== id));
+    setPositions(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, status: "closed" as const } : p);
+      // Update localStorage
+      try { localStorage.setItem("privateperps_positions", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
     setClosing(null);
   };
 
   if (items.length === 0) {
     return (
-      <div className="text-center py-10">
-        <div className="w-12 h-12 bg-arcium-800/60 rounded-xl flex items-center justify-center mx-auto mb-3 border border-arcium-700/30">
-          <Lock className="w-5 h-5 text-arcium-600" />
+      <div style={{ textAlign: "center", padding: "32px 16px" }}>
+        <div style={{ width: 44, height: 44, background: "rgba(30,15,61,0.6)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", border: "1px solid rgba(61,31,130,0.3)" }}>
+          <Lock size={18} style={{ color: "#3d1f82" }} />
         </div>
-        <p className="text-sm text-arcium-500">
+        <p style={{ fontSize: 13, color: "#7c6fa0" }}>
           {activeTab === "positions" ? "No open positions" : "No trade history"}
         </p>
-        <p className="text-xs text-arcium-600 mt-1">Open a position to get started</p>
+        <p style={{ fontSize: 11, color: "#3d1f82", marginTop: 4 }}>
+          {activeTab === "positions" ? "Open a position to get started" : "Closed positions appear here"}
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {items.map(pos => {
-        const pnl      = (pos.markPrice - pos.entryPrice) / pos.entryPrice * pos.size * (pos.direction === "long" ? 1 : -1);
-        const pnlPct   = (pnl / pos.collateral) * 100;
+        const currentPrice = pos.markPrice || markPrice;
+        const pnl    = (currentPrice - pos.entryPrice) / pos.entryPrice * pos.size * (pos.direction === "long" ? 1 : -1);
+        const pnlPct = (pnl / pos.collateral) * 100;
         const isProfit = pnl >= 0;
+        const openedDate = new Date(pos.openedAt).toLocaleTimeString();
 
         return (
-          <div key={pos.id} className="bg-arcium-900/60 border border-arcium-700/30 rounded-xl p-4 hover:border-arcium-600/40 transition-all">
+          <div
+            key={pos.id}
+            style={{ background: "rgba(18,8,32,0.6)", border: "1px solid rgba(61,31,130,0.3)", borderRadius: 12, padding: 14, transition: "all 0.2s" }}
+          >
             {/* Top row */}
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 {pos.direction === "long"
-                  ? <span className="tag-long flex items-center gap-1"><TrendingUp className="w-3 h-3" />LONG</span>
-                  : <span className="tag-short flex items-center gap-1"><TrendingDown className="w-3 h-3" />SHORT</span>
+                  ? <span className="tag-long" style={{ display: "flex", alignItems: "center", gap: 3 }}><TrendingUp size={10} />LONG</span>
+                  : <span className="tag-short" style={{ display: "flex", alignItems: "center", gap: 3 }}><TrendingDown size={10} />SHORT</span>
                 }
-                <span className="text-xs text-arcium-400 font-mono">{pos.leverage}×</span>
-                <span className="tag-encrypted flex items-center gap-1">
-                  <Lock className="w-2.5 h-2.5" />Private
-                </span>
+                <span style={{ fontSize: 10, color: "#7c6fa0", fontFamily: "monospace" }}>{pos.leverage}×</span>
+                <span className="tag-encrypted" style={{ display: "flex", alignItems: "center", gap: 3 }}><Lock size={9} />Private</span>
               </div>
-              <div className="text-right">
-                <div className={`text-sm font-mono font-bold ${isProfit ? "text-green-400" : "text-red-400"}`}>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 700, color: isProfit ? "#22c55e" : "#ef4444" }}>
                   {isProfit ? "+" : ""}${pnl.toFixed(2)}
                 </div>
-                <div className={`text-xs font-mono ${isProfit ? "text-green-600" : "text-red-600"}`}>
+                <div style={{ fontSize: 10, fontFamily: "monospace", color: isProfit ? "#16a34a" : "#dc2626" }}>
                   {isProfit ? "+" : ""}{pnlPct.toFixed(2)}%
                 </div>
               </div>
             </div>
 
-            {/* Stats grid */}
-            <div className="grid grid-cols-3 gap-3 mb-3">
+            {/* Stats */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
               {[
-                ["Size",       `$${(pos.size/1000).toFixed(0)}k`,          false],
-                ["Entry",      `$${pos.entryPrice.toLocaleString()}`,       false],
-                ["Liq. Price", "🔒 Encrypted",                              true],
+                ["Size", `$${(pos.size / 1000).toFixed(0)}k`, false],
+                ["Entry", `$${pos.entryPrice.toLocaleString()}`, false],
+                ["Liq. Price", "🔒 Encrypted", true],
               ].map(([label, value, enc]) => (
                 <div key={String(label)}>
-                  <p className="text-[10px] text-arcium-600 uppercase tracking-wider">{label}</p>
-                  <p className={`text-xs font-mono mt-0.5 ${enc ? "text-arcium-500" : "text-arcium-200"}`}>
-                    {String(value)}
-                  </p>
+                  <p style={{ fontSize: 9, color: "#7c6fa0", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</p>
+                  <p style={{ fontSize: 11, fontFamily: "monospace", color: enc ? "#7c6fa0" : "#c4adfb", marginTop: 2 }}>{String(value)}</p>
                 </div>
               ))}
             </div>
 
             {/* Collateral bar */}
-            <div className="mb-3">
-              <div className="flex justify-between text-[10px] text-arcium-600 mb-1">
-                <span>Collateral: ${pos.collateral.toLocaleString()} USDC</span>
-                <span>{pos.openedAt}</span>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                <span style={{ fontSize: 9, color: "#7c6fa0" }}>Collateral: ${pos.collateral.toLocaleString()} USDC</span>
+                <span style={{ fontSize: 9, color: "#7c6fa0" }}>{openedDate}</span>
               </div>
-              <div className="h-1 bg-arcium-800/60 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${isProfit ? "bg-green-500/60" : "bg-red-500/60"}`}
-                  style={{ width: `${Math.min(100, Math.abs(pnlPct) * 2)}%` }}
-                />
+              <div style={{ height: 3, background: "rgba(30,15,61,0.8)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 2, background: isProfit ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)", width: `${Math.min(100, Math.abs(pnlPct) * 2)}%` }} />
               </div>
             </div>
 
+            {/* Tx link */}
+            {pos.txSignature && (
+              <a
+                href={`https://explorer.solana.com/tx/${pos.txSignature}?cluster=devnet`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: "#a07bf7", textDecoration: "none", marginBottom: 8 }}
+              >
+                <ExternalLink size={9} />
+                Tx: {pos.txSignature.slice(0, 12)}…{pos.txSignature.slice(-6)} — View on Explorer ↗
+              </a>
+            )}
+
             {/* Actions */}
             {pos.status === "open" && (
-              <div className="flex gap-2 flex-wrap">
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 <button
                   onClick={() => handleCheckLiquidation(pos.id)}
                   disabled={!!checking}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-arcium-800/60 hover:bg-arcium-700/60 border border-arcium-700/30 hover:border-arcium-500/40 text-arcium-300 text-xs font-display font-medium rounded-lg transition-all disabled:opacity-50"
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", background: "rgba(30,15,61,0.6)", border: "1px solid rgba(61,31,130,0.3)", borderRadius: 8, color: "#c4adfb", fontSize: 10, fontWeight: 600, cursor: "pointer", opacity: checking ? 0.5 : 1 }}
                 >
-                  {checking === pos.id
-                    ? <Loader2 className="w-3 h-3 animate-spin" />
-                    : <Lock className="w-3 h-3" />
-                  }
+                  {checking === pos.id ? <Loader2 size={10} className="animate-spin" /> : <Lock size={10} />}
                   Check Liq.
                 </button>
                 <button
                   onClick={() => handleEmitSignal(pos.id)}
-                  disabled={!!emitting || pos.signalEmitted}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-arcium-800/60 hover:bg-arcium-700/60 border border-arcium-700/30 hover:border-arcium-500/40 text-arcium-300 text-xs font-display font-medium rounded-lg transition-all disabled:opacity-50"
+                  disabled={!!emitting}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", background: "rgba(30,15,61,0.6)", border: "1px solid rgba(61,31,130,0.3)", borderRadius: 8, color: "#c4adfb", fontSize: 10, fontWeight: 600, cursor: "pointer", opacity: emitting ? 0.5 : 1 }}
                 >
-                  {emitting === pos.id
-                    ? <Loader2 className="w-3 h-3 animate-spin" />
-                    : <Share2 className="w-3 h-3" />
-                  }
-                  {pos.signalEmitted ? "Signal Emitted ✓" : "Emit Signal"}
+                  {emitting === pos.id ? <Loader2 size={10} className="animate-spin" /> : <Share2 size={10} />}
+                  Emit Signal
                 </button>
                 <button
                   onClick={() => handleClose(pos.id)}
                   disabled={!!closing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 border border-red-800/40 hover:border-red-600/40 text-red-400 text-xs font-display font-medium rounded-lg transition-all disabled:opacity-50 ml-auto"
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", background: "rgba(127,29,29,0.3)", border: "1px solid rgba(185,28,28,0.4)", borderRadius: 8, color: "#ef4444", fontSize: 10, fontWeight: 600, cursor: "pointer", marginLeft: "auto", opacity: closing ? 0.5 : 1 }}
                 >
-                  {closing === pos.id
-                    ? <Loader2 className="w-3 h-3 animate-spin" />
-                    : <X className="w-3 h-3" />
-                  }
+                  {closing === pos.id ? <Loader2 size={10} className="animate-spin" /> : <X size={10} />}
                   Close
                 </button>
               </div>

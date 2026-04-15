@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
-import { RescueCipher } from "@arcium-hq/client";
+import { RescueCipher, getMXEPublicKey } from "@arcium-hq/client";
 import { x25519 } from "@noble/curves/ed25519";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -72,12 +72,10 @@ export function usePrivatePerps(programId?: string) {
       { commitment: "confirmed" }
     );
 
-    // Temporary demo key (Arcium MXE public key placeholder)
-    const mxePublicKeyBytes = new Uint8Array(32).fill(1);
-    
-    const privKey = x25519.utils.randomSecretKey();
-    const pubKey  = x25519.getPublicKey(privKey);
-    const shared  = x25519.getSharedSecret(privKey, mxePublicKeyBytes);
+    const mxePubKey   = await getMXEPublicKey(provider, progId);
+    const privKey     = x25519.utils.randomSecretKey();
+    const pubKey      = x25519.getPublicKey(privKey);
+    const shared      = x25519.getSharedSecret(privKey, mxePubKey);
     const cipher      = new RescueCipher(shared);
 
     keyMaterial.current = { privateKey: privKey, publicKey: pubKey, sharedSecret: shared, cipher };
@@ -119,9 +117,9 @@ export function usePrivatePerps(programId?: string) {
     progId: PublicKey
   ): Promise<bigint> => {
     const km = await initKeyMaterial(progId);
-  const ct = Array.from(new Uint8Array(ciphertextBytes)); // number[]
-const nc = new Uint8Array(nonceBytes);                  // Uint8Array
-const [result] = km.cipher.decrypt([ct], nc);
+    const ct = new Uint8Array(ciphertextBytes);
+    const nc = new Uint8Array(nonceBytes);
+   const [result] = km.cipher.decrypt([Array.from(ct)], nc);
     return result;
   }, [initKeyMaterial]);
 

@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
-import { Lock, TrendingUp, TrendingDown, Info, Loader2, ChevronDown } from "lucide-react";
+import { Lock, TrendingUp, TrendingDown, Loader2, ChevronDown, ExternalLink } from "lucide-react";
+import { useOnChainTrade } from "@/hooks/useOnChainTrade";
 
 interface Props {
   markPrice: number;
@@ -12,12 +13,13 @@ const LEVERAGE_PRESETS = [1, 2, 5, 10, 20, 50, 100];
 
 export function TradingPanel({ markPrice }: Props) {
   const { publicKey } = useWallet();
+  const { openPosition, loading } = useOnChainTrade();
 
   const [direction,  setDirection]  = useState<"long" | "short">("long");
   const [collateral, setCollateral] = useState("");
   const [leverage,   setLeverage]   = useState(5);
-  const [loading,    setLoading]    = useState(false);
   const [showInfo,   setShowInfo]   = useState(false);
+  const [lastTx,     setLastTx]     = useState<string | null>(null);
 
   const collateralNum = parseFloat(collateral) || 0;
   const positionSize  = collateralNum * leverage;
@@ -27,126 +29,144 @@ export function TradingPanel({ markPrice }: Props) {
   const liqDistance   = Math.abs(((liqPrice - markPrice) / markPrice) * 100);
 
   const handleOpenPosition = async () => {
-    if (!publicKey) return;
-    if (collateralNum <= 0) {
-      toast.error("Enter a collateral amount");
-      return;
-    }
+    if (!publicKey) { toast.error("Connect your wallet first"); return; }
+    if (collateralNum <= 0) { toast.error("Enter a collateral amount"); return; }
 
-    setLoading(true);
-    const toastId = toast.loading("Encrypting trade inputs…");
+    const toastId = toast.loading("Encrypting trade inputs via Arcium…");
 
     try {
-      // Simulate the MPC computation flow for devnet demo
-      await new Promise(r => setTimeout(r, 1500));
-      toast.loading("Submitting to Solana…", { id: toastId });
-      await new Promise(r => setTimeout(r, 2000));
-      toast.loading("Arcium MPC computing privately…", { id: toastId });
-      await new Promise(r => setTimeout(r, 4000));
-      toast.loading("Finalising on-chain…", { id: toastId });
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 800));
+      toast.loading("Please sign the transaction in your wallet…", { id: toastId });
+
+      const result = await openPosition({
+        direction,
+        collateral: collateralNum,
+        leverage,
+        markPrice,
+      });
+
+      setLastTx(result.signature);
+      setCollateral("");
 
       toast.success(
-        `${direction.toUpperCase()} position opened! Size: $${positionSize.toLocaleString()}`,
-        { id: toastId, duration: 5000 }
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+            {direction.toUpperCase()} position opened! 🎉
+          </div>
+          <div style={{ fontSize: 11, opacity: 0.8 }}>
+            Signed on Solana Devnet
+          </div>
+          <a
+            href={`https://explorer.solana.com/tx/${result.signature}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ fontSize: 11, color: "#a07bf7", textDecoration: "underline", display: "block", marginTop: 4 }}
+          >
+            View on Explorer ↗
+          </a>
+        </div>,
+        { id: toastId, duration: 8000 }
       );
-      setCollateral("");
     } catch (e: any) {
-      toast.error(e?.message || "Transaction failed", { id: toastId });
-    } finally {
-      setLoading(false);
+      const msg = e?.message?.includes("rejected") ? "Transaction rejected by user" : (e?.message || "Failed");
+      toast.error(msg, { id: toastId });
     }
   };
 
   return (
     <div className="glass-card overflow-hidden sticky top-24">
-      {/* Header tabs */}
-      <div className="flex border-b border-arcium-700/40">
+      {/* Tabs */}
+      <div style={{ display: "flex", borderBottom: "1px solid rgba(61,31,130,0.4)" }}>
         <button
           onClick={() => setDirection("long")}
-          className={`flex-1 py-3.5 text-sm font-display font-semibold flex items-center justify-center gap-2 transition-all ${
-            direction === "long"
-              ? "bg-green-900/30 text-green-400 border-b-2 border-green-500"
-              : "text-arcium-500 hover:text-arcium-300"
-          }`}
+          style={{
+            flex: 1, padding: "14px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            background: direction === "long" ? "rgba(34,197,94,0.12)" : "transparent",
+            color: direction === "long" ? "#22c55e" : "#7c6fa0",
+            borderBottom: direction === "long" ? "2px solid #22c55e" : "2px solid transparent",
+            border: "none", borderTop: "none", borderLeft: "none", borderRight: "none",
+            transition: "all 0.2s",
+          }}
         >
-          <TrendingUp className="w-4 h-4" />
-          Long
+          <TrendingUp size={15} /> Long
         </button>
         <button
           onClick={() => setDirection("short")}
-          className={`flex-1 py-3.5 text-sm font-display font-semibold flex items-center justify-center gap-2 transition-all ${
-            direction === "short"
-              ? "bg-red-900/30 text-red-400 border-b-2 border-red-500"
-              : "text-arcium-500 hover:text-arcium-300"
-          }`}
+          style={{
+            flex: 1, padding: "14px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            background: direction === "short" ? "rgba(239,68,68,0.12)" : "transparent",
+            color: direction === "short" ? "#ef4444" : "#7c6fa0",
+            borderBottom: direction === "short" ? "2px solid #ef4444" : "2px solid transparent",
+            border: "none", borderTop: "none", borderLeft: "none", borderRight: "none",
+            transition: "all 0.2s",
+          }}
         >
-          <TrendingDown className="w-4 h-4" />
-          Short
+          <TrendingDown size={15} /> Short
         </button>
       </div>
 
-      <div className="p-5 space-y-5">
+      <div style={{ padding: 16 }}>
         {/* Privacy notice */}
         <div
-          className="flex items-start gap-2.5 p-3 bg-arcium-800/40 rounded-xl border border-arcium-700/30 cursor-pointer"
           onClick={() => setShowInfo(!showInfo)}
+          style={{
+            display: "flex", alignItems: "flex-start", gap: 8,
+            background: "rgba(61,31,130,0.12)", border: "1px solid rgba(91,47,212,0.2)",
+            borderRadius: 10, padding: "9px 11px", marginBottom: 14, cursor: "pointer",
+          }}
         >
-          <Lock className="w-3.5 h-3.5 text-arcium-400 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-xs text-arcium-400 font-medium">
-              Trade inputs encrypted by Arcium MPC
-            </p>
-            {showInfo && (
-              <p className="text-xs text-arcium-500 mt-1.5 leading-relaxed">
-                Your entry price, size, leverage, and liquidation threshold are encrypted in your browser
-                using x25519 ECDH before being sent to Solana. Arcium's MPC cluster processes them
-                without ever seeing plaintext values.
-              </p>
-            )}
-          </div>
-          <ChevronDown className={`w-3.5 h-3.5 text-arcium-600 shrink-0 mt-0.5 transition-transform ${showInfo ? "rotate-180" : ""}`} />
+          <Lock size={13} style={{ color: "#a07bf7", marginTop: 1, flexShrink: 0 }} />
+          <p style={{ fontSize: 10, color: "#7c6fa0", lineHeight: 1.5, flex: 1 }}>
+            Trade inputs encrypted by Arcium MPC before leaving your browser
+          </p>
+          <ChevronDown size={13} style={{ color: "#7c6fa0", transform: showInfo ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }} />
         </div>
+        {showInfo && (
+          <p style={{ fontSize: 10, color: "#7c6fa0", lineHeight: 1.6, marginBottom: 12, background: "rgba(18,8,32,0.6)", borderRadius: 8, padding: "8px 10px" }}>
+            Your entry price, size, leverage, and liquidation threshold are encrypted with x25519 ECDH.
+            Arcium MPC computes your liquidation price without ever seeing plaintext values.
+          </p>
+        )}
 
-        {/* Market price */}
-        <div>
-          <p className="label">Mark Price</p>
-          <div className="input-field flex items-center justify-between cursor-not-allowed opacity-70">
-            <span className="font-mono">${markPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-            <span className="text-xs text-arcium-500">Oracle</span>
+        {/* Mark price */}
+        <div style={{ marginBottom: 12 }}>
+          <label className="label">Mark Price</label>
+          <div className="input-field" style={{ display: "flex", justifyContent: "space-between", opacity: 0.7, cursor: "not-allowed" }}>
+            <span style={{ fontFamily: "monospace" }}>${markPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+            <span style={{ fontSize: 10, color: "#7c6fa0" }}>Oracle</span>
           </div>
         </div>
 
         {/* Collateral */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
             <label className="label">Collateral (USDC)</label>
-            <button className="text-xs text-arcium-500 hover:text-arcium-300 transition-colors font-mono">
-              Balance: 10,000.00
-            </button>
+            <span style={{ fontSize: 10, color: "#7c6fa0", fontFamily: "monospace" }}>Bal: 10,000.00</span>
           </div>
-          <div className="relative">
+          <div style={{ position: "relative" }}>
             <input
               type="number"
               placeholder="0.00"
               value={collateral}
               onChange={e => setCollateral(e.target.value)}
-              className="input-field pr-16"
+              className="input-field"
+              style={{ paddingRight: 48, fontFamily: "monospace" }}
             />
             <button
               onClick={() => setCollateral("10000")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-arcium-400 hover:text-arcium-200 font-display font-semibold transition-colors"
+              style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 10, color: "#7c4ff0", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
             >
               MAX
             </button>
           </div>
-          {/* Quick amounts */}
-          <div className="flex gap-2 mt-2">
+          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
             {[100, 500, 1000, 5000].map(a => (
               <button
                 key={a}
                 onClick={() => setCollateral(String(a))}
-                className="flex-1 py-1.5 text-xs font-mono bg-arcium-800/60 hover:bg-arcium-700/60 text-arcium-400 hover:text-arcium-200 border border-arcium-700/30 rounded-lg transition-colors"
+                style={{ flex: 1, padding: "4px 0", fontSize: 10, fontFamily: "monospace", background: "rgba(30,15,61,0.6)", border: "1px solid rgba(61,31,130,0.3)", borderRadius: 8, color: "#7c6fa0", cursor: "pointer" }}
               >
                 {a >= 1000 ? `${a/1000}k` : a}
               </button>
@@ -155,29 +175,27 @@ export function TradingPanel({ markPrice }: Props) {
         </div>
 
         {/* Leverage */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
             <label className="label">Leverage</label>
-            <span className="text-sm font-display font-bold text-arcium-200">{leverage}×</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#c4adfb" }}>{leverage}×</span>
           </div>
           <input
-            type="range"
-            min="1"
-            max="100"
-            value={leverage}
+            type="range" min="1" max="100" value={leverage}
             onChange={e => setLeverage(parseInt(e.target.value))}
-            className="w-full accent-arcium-500 cursor-pointer"
+            style={{ width: "100%", accentColor: "#5b2fd4", cursor: "pointer" }}
           />
-          <div className="flex gap-1.5 mt-2 flex-wrap">
+          <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
             {LEVERAGE_PRESETS.map(l => (
               <button
                 key={l}
                 onClick={() => setLeverage(l)}
-                className={`px-2 py-1 text-xs font-mono rounded-lg border transition-colors ${
-                  leverage === l
-                    ? "bg-arcium-600/60 border-arcium-500/60 text-arcium-200"
-                    : "bg-arcium-800/40 border-arcium-700/30 text-arcium-500 hover:text-arcium-300"
-                }`}
+                style={{
+                  padding: "3px 8px", fontSize: 10, fontFamily: "monospace", borderRadius: 8, cursor: "pointer",
+                  background: leverage === l ? "rgba(61,31,130,0.5)" : "rgba(30,15,61,0.4)",
+                  border: `1px solid ${leverage === l ? "rgba(91,47,212,0.6)" : "rgba(61,31,130,0.3)"}`,
+                  color: leverage === l ? "#c4adfb" : "#7c6fa0",
+                }}
               >
                 {l}×
               </button>
@@ -187,55 +205,60 @@ export function TradingPanel({ markPrice }: Props) {
 
         {/* Order summary */}
         {collateralNum > 0 && (
-          <div className="space-y-2.5 py-4 border-t border-b border-arcium-700/30">
+          <div style={{ borderTop: "1px solid rgba(61,31,130,0.2)", borderBottom: "1px solid rgba(61,31,130,0.2)", padding: "10px 0", marginBottom: 14 }}>
             {[
-              ["Position Size",      `$${positionSize.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, false],
-              ["Entry Price",        `$${markPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, false],
-              ["Liq. Price (est.)",  "🔒 Computed privately by MPC", true],
-              ["Liq. Distance",      `~${liqDistance.toFixed(1)}% from entry`, false],
-              ["Fees (est.)",        "~0.10 USDC", false],
-            ].map(([k, v, encrypted]) => (
-              <div key={String(k)} className="flex items-center justify-between">
-                <span className="text-xs text-arcium-500">{k}</span>
-                <span className={`text-xs font-mono ${encrypted ? "text-arcium-400 flex items-center gap-1" : "text-arcium-200"}`}>
-                  {encrypted && <Lock className="w-2.5 h-2.5" />}
-                  {v}
+              ["Position Size", `$${positionSize.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, false],
+              ["Entry Price", `$${markPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, false],
+              ["Liq. Price", "🔒 Computed privately by MPC", true],
+              ["Liq. Distance", `~${liqDistance.toFixed(1)}% from entry`, false],
+            ].map(([k, v, enc]) => (
+              <div key={String(k)} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
+                <span style={{ fontSize: 11, color: "#7c6fa0" }}>{k}</span>
+                <span style={{ fontSize: 11, fontFamily: "monospace", color: enc ? "#7c6fa0" : "#c4adfb", display: "flex", alignItems: "center", gap: 3 }}>
+                  {enc && <Lock size={9} />}{String(v)}
                 </span>
               </div>
             ))}
           </div>
         )}
 
+        {/* Last tx link */}
+        {lastTx && (
+          <a
+            href={`https://explorer.solana.com/tx/${lastTx}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "#a07bf7", marginBottom: 10, textDecoration: "none" }}
+          >
+            <ExternalLink size={10} />
+            Last tx: {lastTx.slice(0, 12)}…{lastTx.slice(-6)} ↗
+          </a>
+        )}
+
         {/* Submit button */}
         <button
           onClick={handleOpenPosition}
-          disabled={loading || !collateral}
-          className={`w-full py-4 rounded-xl font-display font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
-            direction === "long"
-              ? "bg-green-700/80 hover:bg-green-600/80 text-green-100 border border-green-600/50"
-              : "bg-red-800/80 hover:bg-red-700/80 text-red-100 border border-red-700/50"
-          }`}
-          style={!loading && collateral ? {
-            boxShadow: direction === "long"
-              ? "0 0 20px rgba(34,197,94,0.25)"
-              : "0 0 20px rgba(239,68,68,0.25)"
-          } : {}}
+          disabled={loading || !collateral || !publicKey}
+          style={{
+            width: "100%", padding: "13px", borderRadius: 12, fontWeight: 700, fontSize: 13,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            cursor: loading || !collateral || !publicKey ? "not-allowed" : "pointer",
+            opacity: loading || !collateral || !publicKey ? 0.5 : 1,
+            border: "none", transition: "all 0.2s",
+            background: direction === "long" ? "linear-gradient(135deg,#166534,#16a34a)" : "linear-gradient(135deg,#7f1d1d,#b91c1c)",
+            color: "white",
+          }}
         >
           {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Processing via Arcium…
-            </>
+            <><Loader2 size={14} className="animate-spin" /> Signing via Wallet…</>
           ) : (
-            <>
-              {direction === "long" ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-              Open {leverage}× {direction.charAt(0).toUpperCase() + direction.slice(1)}
-            </>
+            <>{direction === "long" ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+              Open {leverage}× {direction.charAt(0).toUpperCase() + direction.slice(1)}</>
           )}
         </button>
 
-        <p className="text-center text-[10px] text-arcium-600 font-mono">
-          Devnet only · No real funds · Arcium MPC
+        <p style={{ textAlign: "center", fontSize: 10, color: "#3d1f82", fontFamily: "monospace", marginTop: 8 }}>
+          Devnet only · Arcium MPC · No real funds
         </p>
       </div>
     </div>
