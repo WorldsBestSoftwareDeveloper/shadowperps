@@ -119,9 +119,9 @@ export function usePrivatePerps(programId?: string) {
     progId: PublicKey
   ): Promise<bigint> => {
     const km = await initKeyMaterial(progId);
-    const ct = new Uint8Array(ciphertextBytes);
-    const nc = new Uint8Array(nonceBytes);
-    const [result] = km.cipher.decrypt([ct], nc);
+   const ct = Array.from(new Uint8Array(ciphertextBytes));
+  const nc = Array.from(new Uint8Array(nonceBytes));
+  const [result] = km.cipher.decrypt([ct], nc);
     return result;
   }, [initKeyMaterial]);
 
